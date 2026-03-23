@@ -48,29 +48,69 @@ function createAudio(src, volume, loop = false) {
   return audio;
 }
 
+function layeredTone(frequencies, t, amplitude = 1) {
+  let value = 0;
+  for (let i = 0; i < frequencies.length; i += 1) {
+    value += Math.sin(Math.PI * 2 * frequencies[i] * t) / frequencies.length;
+  }
+  return value * amplitude;
+}
+
 export class SoundManager {
   constructor() {
     this.lastPlayed = { click: 0, nearMiss: 0, explosion: 0 };
-    this.cooldown = 140;
+    this.cooldown = 160;
     this.unlocked = false;
 
     this.bgMusic = createAudio(
-      createWavData(2.4, (t) => {
-        const notes = [261.63, 329.63, 392.0, 329.63];
-        const note = notes[Math.floor(t / 0.6) % notes.length];
-        return Math.sin(Math.PI * 2 * note * t) * 0.12;
+      createWavData(7.2, (t, duration) => {
+        const progression = [
+          [220.0, 277.18, 329.63],
+          [196.0, 246.94, 293.66],
+          [174.61, 220.0, 261.63],
+          [196.0, 246.94, 293.66],
+        ];
+        const chord = progression[Math.floor(t / 1.8) % progression.length];
+        const pad = layeredTone(chord, t, 0.12);
+        const shimmer = layeredTone([chord[1] * 2, chord[2] * 2], t + 0.03, 0.035);
+        const pulse = Math.sin(Math.PI * 2 * 0.22 * t) * 0.012;
+        const fade = 0.86 + 0.14 * Math.sin(Math.PI * 2 * t / duration);
+        return (pad + shimmer + pulse) * fade;
       }),
-      0.3,
+      0.38,
       true
     );
-    this.nearMiss = createAudio(createWavData(0.16, (t) => Math.sin(Math.PI * 2 * (820 - t * 180) * t) * 0.3), 0.4);
-    this.explosion = createAudio(createWavData(0.34, (t, d) => (Math.random() * 2 - 1) * (1 - t / d) * 0.35), 0.45);
-    this.click = createAudio(createWavData(0.08, (t) => Math.sin(Math.PI * 2 * 680 * t) * 0.2), 0.35);
+    this.nearMiss = createAudio(
+      createWavData(0.22, (t, duration) => {
+        const rise = 720 + t * 640;
+        const sparkle = Math.sin(Math.PI * 2 * rise * t) * 0.2;
+        const air = Math.sin(Math.PI * 2 * (rise * 1.5) * t + 0.4) * 0.08;
+        return (sparkle + air) * (1 - t / duration);
+      }),
+      0.42
+    );
+    this.explosion = createAudio(
+      createWavData(0.42, (t, duration) => {
+        const burst = (Math.random() * 2 - 1) * 0.22 * (1 - t / duration);
+        const thump = Math.sin(Math.PI * 2 * (72 - t * 18) * t) * 0.28;
+        const crack = Math.sin(Math.PI * 2 * (240 - t * 80) * t) * 0.12;
+        return burst + thump + crack;
+      }),
+      0.5
+    );
+    this.click = createAudio(
+      createWavData(0.1, (t, duration) => {
+        const tone = Math.sin(Math.PI * 2 * (620 + t * 120) * t) * 0.16;
+        return tone * (1 - t / duration);
+      }),
+      0.3
+    );
   }
 
   unlock() {
     if (this.unlocked) return;
     this.unlocked = true;
+    this.bgMusic.currentTime = 0;
     this.bgMusic.play().catch(() => {});
   }
 
